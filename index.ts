@@ -29,6 +29,64 @@ export async function login({ page }: { page: Page }) {
   return page;
 }
 
+async function setupDownloadBehavior(context: BrowserContext, page: Page) {
+  const client = await context.newCDPSession(page);
+  await client.send("Browser.setDownloadBehavior", {
+    behavior: "allow",
+    downloadPath: "downloads",
+    eventsEnabled: true,
+  });
+}
+
+async function sendWebhookNotification(stagehand: Stagehand, webhookUrl: string, category: string) {
+  if (stagehand.browserbaseSessionID) {
+    console.log(`Session ID for downloads: ${stagehand.browserbaseSessionID}`);
+  }
+
+  stagehand.log({
+    category,
+    message: `Metrics`,
+    auxiliary: {
+      metrics: {
+        value: JSON.stringify(stagehand.metrics),
+        type: "object",
+      },
+    },
+  });
+  
+  const res = await fetch(webhookUrl, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ sessionId: stagehand.browserbaseSessionID }),
+  });
+  const data = await res.json();
+  console.log("Response:", data);
+}
+
+async function genericExport({
+  page,
+  context,
+  stagehand,
+  url,
+  action,
+  webhookUrl,
+  category,
+}: {
+  page: Page;
+  context: BrowserContext;
+  stagehand: Stagehand;
+  url: string;
+  action: string;
+  webhookUrl: string;
+  category: string;
+}) {
+  await page.goto(url);
+  await page.act(action);
+  await sendWebhookNotification(stagehand, webhookUrl, category);
+}
+
 async function main({
   page,
   context,
@@ -38,51 +96,31 @@ async function main({
   context: BrowserContext; // Playwright BrowserContext
   stagehand: Stagehand; // Stagehand instance
 }) {
-  await exportConsumerPasses({
-    page,
-    context,
-    stagehand,
-  });
-}
-
-export async function exportConsumerPasses({
-  page,
-  context,
-  stagehand,
-}: {
-  page: Page; // Playwright Page with act, extract, and observe methods
-  context: BrowserContext; // Playwright BrowserContext
-  stagehand: Stagehand; // Stagehand instance
-}) {
-  // Configure browser download behavior
-  const client = await context.newCDPSession(page);
-  await client.send("Browser.setDownloadBehavior", {
-    behavior: "allow",
-    downloadPath: "downloads",
-    eventsEnabled: true,
-  });
-
+  await setupDownloadBehavior(context, page);
   const loggedInPage = await login({ page });
 
-  await loggedInPage.goto("https://admin.dencar.sancsoft.net/consumer/");
-  await loggedInPage.act("Click 'export selection' to download consumers");
-
-  // Log session ID for download retrieval
-  if (stagehand.browserbaseSessionID) {
-    console.log(`Session ID for downloads: ${stagehand.browserbaseSessionID}`);
-  }
-
-  stagehand.log({
+  await genericExport({
+    page: loggedInPage,
+    context,
+    stagehand,
+    url: "https://admin.dencar.sancsoft.net/consumer/",
+    action: "Click 'export selection' to download consumers",
+    webhookUrl: "https://n8n.nautilusapp.ai/webhook/dencar",
     category: "dencar",
-    message: `Metrics`,
-    auxiliary: {
-      metrics: {
-        value: JSON.stringify(stagehand.metrics),
-        type: "object",
-      },
-    },
+  });
+
+  await genericExport({
+    page: loggedInPage,
+    context,
+    stagehand,
+    url: "https://admin.dencar.sancsoft.net/consumerpass/?currentPage=1&itemsPerPage=1000&CustomerPassId=&ConsumerFirstName=&ConsumerLastName=&MobileNumber=&ConsumerCode=&StartDate=&EndDate=&Active=true&Canceled=true&Suspended=true&Expired=true&Suspending=true&Pending=true&Unregistered=true&CreditCardStatus=&TouchMode=",
+    action: "Click 'export passes' to download consumer passes",
+    webhookUrl: "https://n8n.nautilusapp.ai/webhook/dencar-consumer-passes",
+    category: "Dencar - Consumer Passes",
   });
 }
+
+
 
 async function run() {
   const stagehand = new Stagehand({
@@ -112,15 +150,6 @@ async function run() {
     context,
     stagehand,
   });
-  const res = await fetch("https://n8n.nautilusapp.ai/webhook/dencar", {
-    method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-    },
-    body: JSON.stringify({ sessionId: stagehand.browserbaseSessionID }),
-  });
-  const data = await res.json();
-  console.log("Response:", data);
   await stagehand.close();
 }
 
