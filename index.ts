@@ -6,8 +6,6 @@ dotenv.config();
 import StagehandConfig from "./stagehand.config.js";
 import chalk from "chalk";
 import boxen from "boxen";
-import { drawObserveOverlay, clearOverlays, actWithCache } from "./utils.js";
-import { z } from "zod";
 
 /**
  * 🤘 Welcome to Stagehand! Thanks so much for trying us out!
@@ -33,6 +31,14 @@ async function main({
   context: BrowserContext; // Playwright BrowserContext
   stagehand: Stagehand; // Stagehand instance
 }) {
+  // Configure browser download behavior
+  const client = await context.newCDPSession(page);
+  await client.send("Browser.setDownloadBehavior", {
+    behavior: "allow",
+    downloadPath: "downloads",
+    eventsEnabled: true,
+  });
+
   // Navigate to a URL
   await page.goto("https://admin.dencar.sancsoft.net/customerlogin/login");
 
@@ -52,8 +58,16 @@ async function main({
   await page.act("Click 'Remember me'");
   await page.act("Click sign in");
 
+  await page.goto("https://admin.dencar.sancsoft.net/consumer/");
+  await page.act("Click 'export selection' to download consumers");
+
+  // Log session ID for download retrieval
+  if (stagehand.browserbaseSessionID) {
+    console.log(`Session ID for downloads: ${stagehand.browserbaseSessionID}`);
+  }
+
   stagehand.log({
-    category: "create-browser-app",
+    category: "dencar",
     message: `Metrics`,
     auxiliary: {
       metrics: {
@@ -99,11 +113,6 @@ async function run() {
     stagehand,
   });
   await stagehand.close();
-  console.log(
-    `\n🤘 Thanks so much for using Stagehand! Reach out to us on Slack if you have any feedback: ${chalk.blue(
-      "https://stagehand.dev/slack",
-    )}\n`,
-  );
 }
 
 run();
