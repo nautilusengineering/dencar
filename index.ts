@@ -7,39 +7,7 @@ import StagehandConfig from "./stagehand.config.js";
 import chalk from "chalk";
 import boxen from "boxen";
 
-/**
- * 🤘 Welcome to Stagehand! Thanks so much for trying us out!
- * 🛠️ CONFIGURATION: stagehand.config.ts will help you configure Stagehand
- *
- * 📝 Check out our docs for more fun use cases, like building agents
- * https://docs.stagehand.dev/
- *
- * 💬 If you have any feedback, reach out to us on Slack!
- * https://stagehand.dev/slack
- *
- * 📚 You might also benefit from the docs for Zod, Browserbase, and Playwright:
- * - https://zod.dev/
- * - https://docs.browserbase.com/
- * - https://playwright.dev/docs/intro
- */
-async function main({
-  page,
-  context,
-  stagehand,
-}: {
-  page: Page; // Playwright Page with act, extract, and observe methods
-  context: BrowserContext; // Playwright BrowserContext
-  stagehand: Stagehand; // Stagehand instance
-}) {
-  // Configure browser download behavior
-  const client = await context.newCDPSession(page);
-  await client.send("Browser.setDownloadBehavior", {
-    behavior: "allow",
-    downloadPath: "downloads",
-    eventsEnabled: true,
-  });
-
-  // Navigate to a URL
+export async function login({ page }: { page: Page }) {
   await page.goto("https://admin.dencar.sancsoft.net/customerlogin/login");
 
   await page.act({
@@ -58,8 +26,46 @@ async function main({
   await page.act("Click 'Remember me'");
   await page.act("Click sign in");
 
-  await page.goto("https://admin.dencar.sancsoft.net/consumer/");
-  await page.act("Click 'export selection' to download consumers");
+  return page;
+}
+
+async function main({
+  page,
+  context,
+  stagehand,
+}: {
+  page: Page; // Playwright Page with act, extract, and observe methods
+  context: BrowserContext; // Playwright BrowserContext
+  stagehand: Stagehand; // Stagehand instance
+}) {
+  await exportConsumerPasses({
+    page,
+    context,
+    stagehand,
+  });
+}
+
+export async function exportConsumerPasses({
+  page,
+  context,
+  stagehand,
+}: {
+  page: Page; // Playwright Page with act, extract, and observe methods
+  context: BrowserContext; // Playwright BrowserContext
+  stagehand: Stagehand; // Stagehand instance
+}) {
+  // Configure browser download behavior
+  const client = await context.newCDPSession(page);
+  await client.send("Browser.setDownloadBehavior", {
+    behavior: "allow",
+    downloadPath: "downloads",
+    eventsEnabled: true,
+  });
+
+  const loggedInPage = await login({ page });
+
+  await loggedInPage.goto("https://admin.dencar.sancsoft.net/consumer/");
+  await loggedInPage.act("Click 'export selection' to download consumers");
 
   // Log session ID for download retrieval
   if (stagehand.browserbaseSessionID) {
@@ -78,12 +84,6 @@ async function main({
   });
 }
 
-/**
- * This is the main function that runs when you do npm run start
- *
- * YOU PROBABLY DON'T NEED TO MODIFY ANYTHING BELOW THIS POINT!
- *
- */
 async function run() {
   const stagehand = new Stagehand({
     ...StagehandConfig,
@@ -112,6 +112,15 @@ async function run() {
     context,
     stagehand,
   });
+  const res = await fetch("https://n8n.nautilusapp.ai/webhook/dencar", {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+    },
+    body: JSON.stringify({ sessionId: stagehand.browserbaseSessionID }),
+  });
+  const data = await res.json();
+  console.log("Response:", data);
   await stagehand.close();
 }
 
