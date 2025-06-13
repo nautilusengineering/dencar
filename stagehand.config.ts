@@ -8,14 +8,13 @@ const StagehandConfig: ConstructorParams = {
   domSettleTimeoutMs: 30_000 /* Timeout for DOM to settle in milliseconds */,
 
   // LLM configuration
-  modelName:
-    "anthropic/claude-3-7-sonnet-20250219" /* Name of the model to use */,
+  modelName: "claude-3-5-sonnet-latest" /* Name of the model to use */,
   modelClientOptions: {
     apiKey: process.env.ANTHROPIC_API_KEY,
   } /* Configuration options for the model client */,
 
   // Browser configuration
-  env: "LOCAL" /* Environment to run in: LOCAL or BROWSERBASE */,
+  env: "BROWSERBASE" /* Environment to run in: LOCAL or BROWSERBASE */,
   apiKey: process.env.BROWSERBASE_API_KEY /* API key for authentication */,
   projectId: process.env.BROWSERBASE_PROJECT_ID /* Project identifier */,
   // browserbaseSessionID:

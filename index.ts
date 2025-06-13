@@ -6,6 +6,7 @@ dotenv.config();
 import StagehandConfig from "./stagehand.config.js";
 import chalk from "chalk";
 import boxen from "boxen";
+import { setTimeout } from "timers";
 
 export async function login({ page }: { page: Page }) {
   await page.goto("https://admin.dencar.sancsoft.net/customerlogin/login");
@@ -38,7 +39,11 @@ async function setupDownloadBehavior(context: BrowserContext, page: Page) {
   });
 }
 
-async function sendWebhookNotification(stagehand: Stagehand, webhookUrl: string, category: string) {
+async function sendWebhookNotification(
+  stagehand: Stagehand,
+  webhookUrl: string,
+  category: string,
+) {
   if (stagehand.browserbaseSessionID) {
     console.log(`Session ID for downloads: ${stagehand.browserbaseSessionID}`);
   }
@@ -53,7 +58,7 @@ async function sendWebhookNotification(stagehand: Stagehand, webhookUrl: string,
       },
     },
   });
-  
+
   const res = await fetch(webhookUrl, {
     method: "POST",
     headers: {
@@ -99,28 +104,42 @@ async function main({
   await setupDownloadBehavior(context, page);
   const loggedInPage = await login({ page });
 
+  await new Promise((resolve) => setTimeout(resolve, 5_000));
+
   await genericExport({
     page: loggedInPage,
     context,
     stagehand,
     url: "https://admin.dencar.sancsoft.net/consumer/",
     action: "Click 'export selection' to download consumers",
-    webhookUrl: "https://n8n.nautilusapp.ai/webhook/dencar",
-    category: "dencar",
+    webhookUrl: "https://n8n.nautilusapp.ai/webhook/dencar-consumers",
+    category: "Dencar - Consumers",
   });
+
+  await new Promise((resolve) => setTimeout(resolve, 5_000));
 
   await genericExport({
     page: loggedInPage,
     context,
     stagehand,
-    url: "https://admin.dencar.sancsoft.net/consumerpass/?currentPage=1&itemsPerPage=1000&CustomerPassId=&ConsumerFirstName=&ConsumerLastName=&MobileNumber=&ConsumerCode=&StartDate=&EndDate=&Active=true&Canceled=true&Suspended=true&Expired=true&Suspending=true&Pending=true&Unregistered=true&CreditCardStatus=&TouchMode=",
+    url: "https://admin.dencar.sancsoft.net/consumerpass/?currentPage=1&itemsPerPage=2000&CustomerPassId=&ConsumerFirstName=&ConsumerLastName=&MobileNumber=&ConsumerCode=&StartDate=&EndDate=&Active=true&Canceled=true&Suspended=true&Expired=true&Suspending=true&Pending=true&Unregistered=true&CreditCardStatus=&TouchMode=",
     action: "Click 'export passes' to download consumer passes",
     webhookUrl: "https://n8n.nautilusapp.ai/webhook/dencar-consumer-passes",
     category: "Dencar - Consumer Passes",
   });
+
+  await new Promise((resolve) => setTimeout(resolve, 5_000));
+
+  await genericExport({
+    page: loggedInPage,
+    context,
+    stagehand,
+    url: "https://admin.dencar.sancsoft.net/payment/?currentPage=1&itemsPerPage=10&PaymentType=&SiteId=&DeviceId=&PassState=&StartDate=2023-06-06&EndDate=&LicensePlateNum=&Code=&ConsumerFirstName=&ConsumerLastName=&ConsumerId=",
+    action: "Click 'Export Selection'",
+    webhookUrl: "https://n8n.nautilusapp.ai/webhook/dencar-transactions",
+    category: "Dencar - Payments",
+  });
 }
-
-
 
 async function run() {
   const stagehand = new Stagehand({
