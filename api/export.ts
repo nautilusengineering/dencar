@@ -159,6 +159,10 @@ export default async function handler(req: VercelRequest, res: VercelResponse) {
   try {
     stagehand = new Stagehand({
       ...StagehandConfig,
+      logger: {
+        verbose: StagehandConfig.verbose,
+        pretty: false,
+      },
     });
     await stagehand.init();
 
