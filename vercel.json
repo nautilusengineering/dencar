@@ -1,0 +1,10 @@
+{
+  "functions": {
+    "api/export.ts": {
+      "maxDuration": 300
+    }
+  },
+  "buildCommand": "pnpm build",
+  "outputDirectory": ".",
+  "framework": null
+}

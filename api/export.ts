@@ -1,14 +1,13 @@
+import { VercelRequest, VercelResponse } from "@vercel/node";
 import dotenv from "dotenv";
 import { Stagehand, Page, BrowserContext } from "@browserbasehq/stagehand";
+import StagehandConfig from "../stagehand.config.js";
+import { setTimeout } from "timers";
 
 // Configure dotenv
 dotenv.config();
-import StagehandConfig from "./stagehand.config.js";
-import chalk from "chalk";
-import boxen from "boxen";
-import { setTimeout } from "timers";
 
-export async function login({ page }: { page: Page }) {
+async function login({ page }: { page: Page }) {
   await page.goto("https://admin.dencar.sancsoft.net/customerlogin/login");
 
   await page.act({
@@ -92,14 +91,14 @@ async function genericExport({
   await sendWebhookNotification(stagehand, webhookUrl, category);
 }
 
-async function main({
+async function runExports({
   page,
   context,
   stagehand,
 }: {
-  page: Page; // Playwright Page with act, extract, and observe methods
-  context: BrowserContext; // Playwright BrowserContext
-  stagehand: Stagehand; // Stagehand instance
+  page: Page;
+  context: BrowserContext;
+  stagehand: Stagehand;
 }) {
   await setupDownloadBehavior(context, page);
   const loggedInPage = await login({ page });
@@ -141,35 +140,58 @@ async function main({
   });
 }
 
-async function run() {
-  const stagehand = new Stagehand({
-    ...StagehandConfig,
-  });
-  await stagehand.init();
+export default async function handler(req: VercelRequest, res: VercelResponse) {
+  // Set max duration for Vercel Pro (300 seconds)
+  res.setHeader("Access-Control-Allow-Origin", "*");
+  res.setHeader("Access-Control-Allow-Methods", "POST, OPTIONS");
+  res.setHeader("Access-Control-Allow-Headers", "Content-Type");
 
-  if (StagehandConfig.env === "BROWSERBASE" && stagehand.browserbaseSessionID) {
-    console.log(
-      boxen(
-        `View this session live in your browser: \n${chalk.blue(
-          `https://browserbase.com/sessions/${stagehand.browserbaseSessionID}`,
-        )}`,
-        {
-          title: "Browserbase",
-          padding: 1,
-          margin: 3,
-        },
-      ),
-    );
+  if (req.method === "OPTIONS") {
+    return res.status(200).end();
   }
 
-  const page = stagehand.page;
-  const context = stagehand.context;
-  await main({
-    page,
-    context,
-    stagehand,
-  });
-  await stagehand.close();
-}
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
-run();
+  let stagehand: Stagehand | null = null;
+
+  try {
+    stagehand = new Stagehand({
+      ...StagehandConfig,
+    });
+    await stagehand.init();
+
+    const sessionId = stagehand.browserbaseSessionID;
+    const sessionUrl = sessionId
+      ? `https://browserbase.com/sessions/${sessionId}`
+      : null;
+
+    // Start the export process
+    const page = stagehand.page;
+    const context = stagehand.context;
+    
+    await runExports({
+      page,
+      context,
+      stagehand,
+    });
+
+    return res.status(200).json({
+      success: true,
+      message: "Export completed successfully",
+      sessionId,
+      sessionUrl,
+    });
+  } catch (error) {
+    console.error("Export failed:", error);
+    return res.status(500).json({
+      error: "Export failed",
+      message: error instanceof Error ? error.message : "Unknown error",
+    });
+  } finally {
+    if (stagehand) {
+      await stagehand.close();
+    }
+  }
+}

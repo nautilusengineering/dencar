@@ -4,9 +4,12 @@
   "scripts": {
     "build": "tsc",
     "start": "tsx index.ts",
+    "dev": "vercel dev",
+    "deploy": "vercel",
     "postinstall": "playwright install"
   },
   "dependencies": {
+    "@vercel/node": "^3.0.0",
     "@browserbasehq/sdk": "^2.6.0",
     "@browserbasehq/stagehand": "^2.3.0",
     "@playwright/test": "^1.49.1",

@@ -1,7 +1,10 @@
 .env
+.env.local
 node_modules
 tmp
 downloads
 .DS_Store
 dist
 cache.json
+.vercel
+*.log
